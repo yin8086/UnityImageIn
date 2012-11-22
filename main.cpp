@@ -1,0 +1,257 @@
+#include <QCoreApplication>
+#include <QtCore>
+#include <QImage>
+#include <QDataStream>
+#include <QFile>
+#include <QRunnable>
+
+#include "pvrtc_dll.h"
+#pragma comment(lib,"E:\\PROG\\UnityImageIn\\pvrtc.lib")
+
+
+QPair<int, QString> getType(const QString& fName) {
+    QString binName=fName.left(fName.indexOf("_"))+".bin";
+    QStringRef typeStr=fName.midRef(fName.indexOf("_")+1,
+                                    fName.indexOf(".")-fName.indexOf("_")-1);
+    int type=1;
+    if(typeStr == "Alpha8") {
+        type = 0;
+    }
+    else if(typeStr == "rgba4444") {
+        type = 1;
+    }
+    else if(typeStr == "argb1555") {
+        type = 2;
+    }
+    else if(typeStr == "rgb565") {
+        type = 3;
+    }
+    else if(typeStr == "rgb888") {
+        type = 4;
+    }
+    else if(typeStr == "rgba8888") {
+        type = 5;
+    }
+    else if(typeStr == "PVRTC4") {
+        type = 6;
+    }
+    return qMakePair(type, binName);
+}
+
+void convert(const uchar* src, char* dest,
+             quint32 dataSize, int pSize,
+             int type) {
+    if(pSize == 1 && type == 0) {
+        //Alpha8
+        quint32 i, j;
+        for(i=0, j=0; i < dataSize; i+=pSize, j+=4) {
+            dest[i] = src[j+3];
+        }
+    }
+    else if(pSize == 2) {
+        //2bpp
+        quint32 i, j;
+        for(i=0, j=0; i < dataSize; i+=pSize, j+=4) {
+            quint16 pixelVal;
+            quint16 r,g,b,a;
+            if(type == 1) {
+                //rgba4444
+                r = (src[j+2]   * 15 + 127) / 255;
+                g = (src[j+1] * 15 + 127) / 255;
+                b = (src[j]  * 15 + 127) / 255;
+                a = (src[j+3] * 15 + 127) / 255;
+                pixelVal=(r<<12)|(g<<8)|(b<<4)|a;
+            }
+            else if(type == 2) {
+                //argb1555
+                r = (src[j+2]   * 31 + 127) / 255;
+                g = (src[j+1] * 31 + 127) / 255;
+                b = (src[j]  * 31 + 127) / 255;
+                a = (src[j+3]/0xff);
+                pixelVal=(a<<15)|(r<<10)|(g<<5)|b;
+
+            }
+            else if(type == 3) {
+                //rgb565
+                r = (src[j+2]   * (31*2) + 255) / (255*2);
+                g = (src[j+1] * 63 + 127) / 255;
+                b = (src[j]  * 31 + 127) / 255;
+                pixelVal = (r << 11) | (g <<  5) | b;
+            }
+            *(quint16*)(dest+i) = pixelVal;
+        }
+    }
+    else if(pSize == 3 && type == 4) {
+        quint32 i, j;
+        for(i=0, j=0; i < dataSize; i+=pSize, j+=4) {
+            dest[i]     = src[j+2];
+            dest[i+1]   = src[j+1];
+            dest[i+2]   = src[j];
+        }
+    }
+    else if(pSize == 4) {
+        quint32 i, j;
+        for(i=0, j=0; i < dataSize; i+=pSize, j+=4) {
+            dest[i]     = src[j+2];
+            dest[i+1]   = src[j+1];
+            dest[i+2]   = src[j];
+            dest[i+3]   = src[j+3];
+        }
+    }
+}
+
+void pngParse(const QString& fName) {
+    QPair<int, QString> typeName=getType(fName);
+    if(!QFile::exists(fName))
+    {
+        printf("Image doesn't exists!\n");
+    }
+    else if(!QFile::exists(typeName.second)) {
+        printf("InputFile doesn't exists!\n");
+    }
+    else {
+        QFile destf(typeName.second);
+        QImage im(fName);
+        if(destf.open(QIODevice::ReadWrite) || !im.isNull()) {
+            QDataStream br(&destf);
+            br.setByteOrder(QDataStream::LittleEndian);
+            quint32 len;
+            br>>len;
+            destf.seek(destf.pos()+len);
+            if(destf.pos()%4 != 0) {
+                destf.seek((destf.pos()/4+1)*4);
+            }
+            quint32 width,height;
+            quint32 imageDataSize;
+            quint32 pixelSize;
+            br>>width>>height>>imageDataSize>>pixelSize;
+
+            //quint32 testSize=destf.pos()+0x28+imageDataSize;
+            //if(destf.size()-4 <= testSize && testSize <= destf.size() &&
+            if(destf.size() > imageDataSize + 20 &&  imageDataSize > 0 &&
+                    width == im.width() &&
+                    height == im.height()) {
+                if ( (1 <= pixelSize && pixelSize <=7 && pixelSize != 6) ||
+                        ( pixelSize == 0x20 ||pixelSize == 0x21) ){
+                    if (pixelSize == 7) {
+                        pixelSize = 2;
+                    }
+                    else if (pixelSize == 5) {
+                        pixelSize = 4;
+                    }
+                    im=im.mirrored(false,true)/*.rgbSwapped()*/;
+                    quint32 imageSize = width*height*pixelSize;
+                    if (pixelSize ==0x20 || pixelSize == 0x21) {
+                        imageSize = width*height/2;
+                    }
+                    uchar* pixelTable=im.bits();
+                    char* tarTable=new char[imageSize];
+                    if (pixelSize ==0x20 || pixelSize == 0x21) {
+                        pvrtc_compress(pixelTable, tarTable, width, height, 0, 1, 1, 0);
+                    }
+                    else {
+                        convert(pixelTable, tarTable, imageSize, pixelSize, typeName.first);
+                    }
+                    //destf.seek(destf.pos()+0x28);
+                    destf.seek(destf.size() - imageDataSize);
+
+                    br.writeRawData(tarTable,imageSize);
+                    if(imageSize != imageDataSize) {
+                        while(width/2 >=1 && height/2 >=1) {
+                            width /= 2;
+                            height /= 2;
+                            im = im.scaledToWidth(width,Qt::SmoothTransformation);
+                            pixelTable = im.bits();
+                            imageSize /= 4;
+                            if (pixelSize ==0x20 || pixelSize == 0x21) {
+                                pvrtc_compress(pixelTable, tarTable, width, height, 0, 1, 1, 0);
+                            }
+                            else {
+                                convert(pixelTable, tarTable, imageSize, pixelSize, typeName.first);
+                            }
+                            br.writeRawData(tarTable,imageSize);
+                        }
+                    }
+                    printf(QObject::tr("%1 Completed!\n").arg(destf.fileName())
+                           .toLatin1().data());
+                    delete [] tarTable;
+                }
+                else {
+                    printf("%s Unknown format!\n",
+                           destf.fileName().toLatin1().data());
+                }
+            }
+            else {
+                printf("%s Not an image!\n",
+                       destf.fileName().toLatin1().data());
+            }
+            destf.close();
+        }
+    }
+}
+
+class MyRun : public QRunnable {
+    QString fName;
+    int type;
+public:
+    MyRun(const QString& fn, int t):QRunnable(),fName(fn),type(t) {}
+    void run();
+};
+void MyRun::run() {
+    pngParse(fName);
+}
+
+int main(int argc, char *argv[])
+{
+    QCoreApplication a(argc, argv);
+    if (argc == 2) {
+        pngParse(argv[1]);
+    }
+    else {
+        printf("Now running in batch mode\n");
+        printf("automatically transform the XXXX_mode.png file\n");
+        printf("in the current folder\n");
+        printf("========================================\n");
+
+        printf("Also Available in Single File Mode\n");
+        printf("UnityImageIn.exe XXXX_mode.png\n");
+
+//        QDir curPath=QDir::current();
+//        QStringList filter;
+//        QList<QFuture<void> > reList;
+//        filter<<"*.png";
+//        curPath.setFilter(QDir::Files | QDir::Hidden | QDir::NoSymLinks);
+//        curPath.setNameFilters(filter);
+//        curPath.setSorting(QDir::Name);
+
+//        foreach(const QString &fn, curPath.entryList()) {
+//            //printf(fn.toLatin1().data());
+//            //printf("\n");
+//            reList.append(QtConcurrent::run(pngParse,fn));
+//        }
+//        for(int i=0;i<reList.size();i++) {
+//            if(reList[i].isRunning())
+//                reList[i].waitForFinished();
+//        }
+        QDir curPath=QDir::current();
+        QStringList filter;
+        //QList<QFuture<void> > reList;
+        QList<QRunnable *> runList;
+        filter<<"*.png";
+        curPath.setFilter(QDir::Files | QDir::Hidden | QDir::NoSymLinks);
+        curPath.setNameFilters(filter);
+        curPath.setSorting(QDir::Name);
+
+        foreach(const QString &fn, curPath.entryList()) {
+            //printf(fn.toLatin1.data());
+            //printf("\n");
+            //reList.append(QtConcurrent::run(fileParse,fn,0));
+            MyRun* tmpR=new MyRun(fn,0);
+            tmpR->setAutoDelete(true);
+            QThreadPool::globalInstance()->start(tmpR);
+            runList.append(tmpR);
+        }
+
+    }
+    return 0;
+}
