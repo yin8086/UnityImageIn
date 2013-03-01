@@ -20,3 +20,4 @@ SOURCES += main.cpp
 HEADERS += \
     pvrtc_dll.h
 
+LIBS += -L../UnityImageOut -lpvrtc
