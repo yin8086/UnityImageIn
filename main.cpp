@@ -63,6 +63,9 @@ QPair<int, QString> getType(const QString& fName) {
     else if(typeStr == "PVRTC4") {
         type = 6;
     }
+    else if(typeStr == "argb8888") {
+        type = 7;
+    }
     return qMakePair(type, binName);
 }
 
@@ -110,6 +113,7 @@ void convert(const uchar* src, char* dest,
         }
     }
     else if(pSize == 3 && type == 4) {
+        //rgb888
         quint32 i, j;
         for(i=0, j=0; i < dataSize; i+=pSize, j+=4) {
             dest[i]     = src[j+2];
@@ -118,12 +122,24 @@ void convert(const uchar* src, char* dest,
         }
     }
     else if(pSize == 4) {
+        //rgba8888
         quint32 i, j;
         for(i=0, j=0; i < dataSize; i+=pSize, j+=4) {
             dest[i]     = src[j+2];
             dest[i+1]   = src[j+1];
             dest[i+2]   = src[j];
             dest[i+3]   = src[j+3];
+        }
+    }
+    else if(pSize == 5 && type == 7) {
+        //argb8888
+        quint32 i, j;
+        pSize = 4;
+        for(i=0, j=0; i < dataSize; i+=pSize, j+=4) {
+            dest[i]     = src[j+3];
+            dest[i+1]   = src[j+2];
+            dest[i+2]   = src[j+1];
+            dest[i+3]   = src[j];
         }
     }
 }
@@ -164,13 +180,13 @@ void pngParse(const QString& fName) {
                     if (pixelSize == 7) {
                         pixelSize = 2;
                     }
-                    else if (pixelSize == 5) {
-                        pixelSize = 4;
-                    }
                     im=im.mirrored(false,true)/*.rgbSwapped()*/;
                     quint32 imageSize = width*height*pixelSize;
                     if (pixelSize ==0x20 || pixelSize == 0x21) {
                         imageSize = width*height/2;
+                    }
+                    else if(pixelSize == 5) {
+                        imageSize = width*height*4;
                     }
                     uchar* pixelTable=im.bits();
                     char* tarTable=new char[imageSize];
