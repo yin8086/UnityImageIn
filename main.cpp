@@ -38,9 +38,11 @@
 #include "pvrtc_dll.h"
 
 QPair<int, QString> getType(const QString& fName) {
-    QString binName=fName.left(fName.lastIndexOf("_"))+".bin";
-    QStringRef typeStr=fName.midRef(fName.indexOf("_")+1,
-                                    fName.indexOf(".")-fName.indexOf("_")-1);
+    //QString binName=fName.left(fName.lastIndexOf("_"))+".bin";
+    QString testStr=fName.left(fName.length() - 4);
+    QString binName = testStr.left(testStr.lastIndexOf("."));
+    QString typeStr=testStr.right(testStr.length() - binName.length() - 1);
+
     int type=1;
     if(typeStr == "Alpha8") {
         type = 0;
