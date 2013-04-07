@@ -68,6 +68,9 @@ QPair<int, QString> getType(const QString& fName) {
     else if(typeStr == "argb8888") {
         type = 7;
     }
+    else if(typeStr == "argb4444") {
+        type = 8;
+    }
     return qMakePair(type, binName);
 }
 
@@ -110,6 +113,14 @@ void convert(const uchar* src, char* dest,
                 g = (src[j+1] * 63 + 127) / 255;
                 b = (src[j]  * 31 + 127) / 255;
                 pixelVal = (r << 11) | (g <<  5) | b;
+            }
+            else if(type == 8) {
+                //argb4444
+                r = (src[j+2]   * 15 + 127) / 255;
+                g = (src[j+1] * 15 + 127) / 255;
+                b = (src[j]  * 15 + 127) / 255;
+                a = (src[j+3] * 15 + 127) / 255;
+                pixelVal = (a << 12) | (r << 8) | (g << 4) | b;
             }
             *(quint16*)(dest+i) = pixelVal;
         }
