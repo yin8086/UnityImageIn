@@ -43,7 +43,7 @@ QMutex mutex;
 
 void threadPrintf(const QString& dst) {
     mutex.lock();
-    printf(dst.toLatin1().data());
+    printf(dst.toLocal8Bit().data());
     mutex.unlock();
 }
 
@@ -239,16 +239,16 @@ void pngParse(const QString& fName) {
                             br.writeRawData(tarTable,imageSize);
                         }
                     }
-                    threadPrintf(QString("%1 Completed!\n").arg(destf.fileName()));
+                    threadPrintf(QObject::tr("%1 Completed!\n").arg(destf.fileName()));
                     delete [] tarTable;
                 }
                 else {
-                    threadPrintf(QString("%1 Unknown format 0x%2!\n").arg(destf.fileName())
+                    threadPrintf(QObject::tr("%1 Unknown format 0x%2!\n").arg(destf.fileName())
                                 .arg(pixelSize, 0, 16));
                 }
             }
             else {
-                threadPrintf(QString("%1 Not an image!\n").arg(destf.fileName()));
+                threadPrintf(QObject::tr("%1 Not an image!\n").arg(destf.fileName()));
             }
             destf.close();
         }
@@ -269,6 +269,7 @@ void MyRun::run() {
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+    QSettings settings("UnitySuite.ini", QSettings::IniFormat);
 
     printf("Work in 2 modes:\n");
     printf("1. UnityImageIn.exe\n"
@@ -285,8 +286,12 @@ int main(int argc, char *argv[])
         QStringList files = QFileDialog::getOpenFileNames(
                                 0,
                                 QObject::tr("Select one or more files to open"),
-                                QDir::current().absolutePath(),
+                                settings.value("dir", QDir::current().absolutePath()).toString(),
                                 QObject::tr("All files (*.png)"));
+
+        if(files.length() > 0) {
+            settings.setValue("dir",files[0].left(files[0].lastIndexOf('/')));
+        }
 
         QList<QRunnable *> runList;
 
