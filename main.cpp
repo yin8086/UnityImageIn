@@ -35,8 +35,17 @@
 #include <QFile>
 #include <QRunnable>
 #include <QFileDialog>
+#include <QMutex>
 
 #include "pvrtc_dll.h"
+
+QMutex mutex;
+
+void threadPrintf(const QString& dst) {
+    mutex.lock();
+    printf(dst.toLatin1().data());
+    mutex.unlock();
+}
 
 QPair<int, QString> getType(const QString& fName) {
     //QString binName=fName.left(fName.lastIndexOf("_"))+".bin";
@@ -162,10 +171,10 @@ void pngParse(const QString& fName) {
     QPair<int, QString> typeName=getType(fName);
     if(!QFile::exists(fName))
     {
-        printf("Image doesn't exists!\n");
+        threadPrintf(QString("Image doesn't exists!\n"));
     }
     else if(!QFile::exists(typeName.second)) {
-        printf("InputFile doesn't exists!\n");
+        threadPrintf(QString("InputFile doesn't exists!\n"));
     }
     else {
         QFile destf(typeName.second);
@@ -230,18 +239,16 @@ void pngParse(const QString& fName) {
                             br.writeRawData(tarTable,imageSize);
                         }
                     }
-                    printf(QObject::tr("%1 Completed!\n").arg(destf.fileName())
-                           .toLatin1().data());
+                    threadPrintf(QString("%1 Completed!\n").arg(destf.fileName()));
                     delete [] tarTable;
                 }
                 else {
-                    printf("%s Unknown format!\n",
-                           destf.fileName().toLatin1().data());
+                    threadPrintf(QString("%1 Unknown format 0x%2!\n").arg(destf.fileName())
+                                .arg(pixelSize, 0, 16));
                 }
             }
             else {
-                printf("%s Not an image!\n",
-                       destf.fileName().toLatin1().data());
+                threadPrintf(QString("%1 Not an image!\n").arg(destf.fileName()));
             }
             destf.close();
         }
