@@ -28,12 +28,13 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <QCoreApplication>
+#include <QApplication>
 #include <QtCore>
 #include <QImage>
 #include <QDataStream>
 #include <QFile>
 #include <QRunnable>
+#include <QFileDialog>
 
 #include "pvrtc_dll.h"
 
@@ -260,49 +261,29 @@ void MyRun::run() {
 
 int main(int argc, char *argv[])
 {
-    QCoreApplication a(argc, argv);
+    QApplication a(argc, argv);
+
+    printf("Work in 2 modes:\n");
+    printf("1. UnityImageIn.exe\n"
+           "\tUse file dialog to select multi pictures\n");
+
+    printf("2. UnityImageIn.exe *.png\n"
+           "\tTransform *.png\n");
+
     if (argc == 2) {
         pngParse(argv[1]);
     }
     else {
-        printf("Now running in batch mode\n");
-        printf("automatically transform the XXXX_mode.png file\n");
-        printf("in the current folder\n");
-        printf("========================================\n");
 
-        printf("Also Available in Single File Mode\n");
-        printf("UnityImageIn.exe XXXX_mode.png\n");
+        QStringList files = QFileDialog::getOpenFileNames(
+                                0,
+                                QObject::tr("Select one or more files to open"),
+                                QDir::current().absolutePath(),
+                                QObject::tr("All files (*.png)"));
 
-//        QDir curPath=QDir::current();
-//        QStringList filter;
-//        QList<QFuture<void> > reList;
-//        filter<<"*.png";
-//        curPath.setFilter(QDir::Files | QDir::Hidden | QDir::NoSymLinks);
-//        curPath.setNameFilters(filter);
-//        curPath.setSorting(QDir::Name);
-
-//        foreach(const QString &fn, curPath.entryList()) {
-//            //printf(fn.toLatin1().data());
-//            //printf("\n");
-//            reList.append(QtConcurrent::run(pngParse,fn));
-//        }
-//        for(int i=0;i<reList.size();i++) {
-//            if(reList[i].isRunning())
-//                reList[i].waitForFinished();
-//        }
-        QDir curPath=QDir::current();
-        QStringList filter;
-        //QList<QFuture<void> > reList;
         QList<QRunnable *> runList;
-        filter<<"*.png";
-        curPath.setFilter(QDir::Files | QDir::Hidden | QDir::NoSymLinks);
-        curPath.setNameFilters(filter);
-        curPath.setSorting(QDir::Name);
 
-        foreach(const QString &fn, curPath.entryList()) {
-            //printf(fn.toLatin1.data());
-            //printf("\n");
-            //reList.append(QtConcurrent::run(fileParse,fn,0));
+        foreach(const QString &fn, files) {
             MyRun* tmpR=new MyRun(fn,0);
             tmpR->setAutoDelete(true);
             QThreadPool::globalInstance()->start(tmpR);
