@@ -270,6 +270,7 @@ int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     QSettings settings("UnitySuite.ini", QSettings::IniFormat);
+    settings.setIniCodec("UTF-8");
 
     printf("Work in 2 modes:\n");
     printf("1. UnityImageIn.exe\n"
