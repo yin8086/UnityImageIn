@@ -191,19 +191,35 @@ void pngParse(const QString& fName) {
             quint32 width,height;
             quint32 imageDataSize;
             quint32 pixelSize;
+            quint32 newSize = 0;
+
+            bool modifyWH = false;
+            qint64 addrWH = 0;
             br>>width>>height>>imageDataSize>>pixelSize;
+
 
             //quint32 testSize=destf.pos()+0x28+imageDataSize;
             //if(destf.size()-4 <= testSize && testSize <= destf.size() &&
             if(destf.size() > imageDataSize + 20 &&  imageDataSize > 0 &&
-                    width == im.width() &&
-                    height == im.height()) {
+                    im.width() >= width &&
+                    im.height() >= height) {
                 if ( (1 <= pixelSize && pixelSize <=7 && pixelSize != 6) ||
                         ( pixelSize == 0x20 ||pixelSize == 0x21) ){
                     if (pixelSize == 7) {
                         pixelSize = 2;
                     }
+                    quint32 oriImageSize = width*height*pixelSize;
                     im=im.mirrored(false,true)/*.rgbSwapped()*/;
+
+
+                    if (width != im.width() || height != im.height()) {
+                        modifyWH = true;
+                        addrWH = destf.pos() - 16;
+                        width = im.width();
+                        height = im.height();
+
+                    }
+
                     quint32 imageSize = width*height*pixelSize;
                     if (pixelSize ==0x20 || pixelSize == 0x21) {
                         imageSize = width*height/2;
@@ -220,10 +236,12 @@ void pngParse(const QString& fName) {
                         convert(pixelTable, tarTable, imageSize, pixelSize, typeName.first);
                     }
                     //destf.seek(destf.pos()+0x28);
-                    destf.seek(destf.size() - imageDataSize);
+                    quint64 addrData = destf.size() - imageDataSize;
+                    destf.seek(addrData);
 
                     br.writeRawData(tarTable,imageSize);
-                    if(imageSize != imageDataSize) {
+                    newSize += imageSize;
+                    if(oriImageSize != imageDataSize) {
                         while(width/2 >=1 && height/2 >=1) {
                             width /= 2;
                             height /= 2;
@@ -237,7 +255,14 @@ void pngParse(const QString& fName) {
                                 convert(pixelTable, tarTable, imageSize, pixelSize, typeName.first);
                             }
                             br.writeRawData(tarTable,imageSize);
+                            newSize += imageSize;
                         }
+                    }
+                    if(modifyWH) {
+                        destf.seek(addrWH);
+                        br <<width <<height <<newSize;
+                        destf.seek(addrData - 4);
+                        br <<newSize;
                     }
                     threadPrintf(QObject::tr("%1 Completed!\n").arg(destf.fileName()));
                     delete [] tarTable;
