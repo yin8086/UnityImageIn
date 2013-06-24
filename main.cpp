@@ -319,14 +319,15 @@ int main(int argc, char *argv[])
             settings.setValue("dir",files[0].left(files[0].lastIndexOf('/')));
         }
 
-        QList<QRunnable *> runList;
 
+        int threadNum = settings.value("Threads", 16).toInt();
+        QThreadPool::globalInstance()->setMaxThreadCount(threadNum);
         foreach(const QString &fn, files) {
             MyRun* tmpR=new MyRun(fn,0);
             tmpR->setAutoDelete(true);
             QThreadPool::globalInstance()->start(tmpR);
-            runList.append(tmpR);
         }
+        settings.setValue("Threads", threadNum);
 
     }
     return 0;
